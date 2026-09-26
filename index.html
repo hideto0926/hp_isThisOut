@@ -1,0 +1,985 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0d17">
+<title>これアウト？</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0b0d17;
+    --ink: #f4f5fb;
+    --ink-soft: #a9aec6;
+    --card: rgba(20, 23, 40, 0.82);
+    --card-line: rgba(255, 255, 255, 0.10);
+    --out: #ff3355;      /* OUT */
+    --safe: #2f8bff;     /* SAFE */
+    --gold: #ffcc33;
+    --radius: 20px;
+    --font: "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", "Hiragino Sans", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font);
+    overflow: hidden;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #fx { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #flash {
+    position: fixed; inset: 0; pointer-events: none; opacity: 0;
+    background: radial-gradient(circle at 50% 40%, rgba(255, 40, 70, 0.55), rgba(255, 0, 40, 0.15) 70%);
+  }
+  #flash.on { animation: flash 0.6s ease-out; }
+  @keyframes flash { 0% { opacity: 1; } 100% { opacity: 0; } }
+
+  .screen {
+    position: fixed; inset: 0;
+    display: none; flex-direction: column;
+    padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+    max-width: 560px; margin: 0 auto;
+    overflow-y: auto;
+  }
+  .screen.active { display: flex; }
+
+  button {
+    font: inherit; color: inherit; border: 0; cursor: pointer;
+    touch-action: manipulation;
+  }
+  button:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; }
+
+  /* タイトル */
+  #screen-title { justify-content: flex-end; gap: 12px; }
+  .logo { text-align: center; margin-bottom: auto; padding-top: 18vh; }
+  .logo h1 {
+    margin: 0; font-size: clamp(44px, 13vw, 72px); font-weight: 800; letter-spacing: 0.02em;
+    text-shadow: 0 0 24px rgba(255, 51, 85, 0.55), 0 0 60px rgba(47, 139, 255, 0.35);
+  }
+  .logo p { margin: 6px 0 0; color: var(--ink-soft); font-size: 15px; }
+  .level {
+    display: flex; align-items: center; gap: 14px;
+    width: 100%; padding: 16px 18px; border-radius: var(--radius);
+    background: var(--card); border: 1px solid var(--card-line);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    text-align: left; transition: transform 0.15s ease;
+  }
+  .level:active { transform: scale(0.98); }
+  .level .badge { font-size: 26px; width: 36px; text-align: center; }
+  .level .name { font-weight: 800; font-size: 18px; }
+  .level .sub { color: var(--ink-soft); font-size: 13px; margin-top: 2px; }
+  .level .best { margin-left: auto; color: var(--gold); font-size: 13px; white-space: nowrap; }
+  .fine { color: var(--ink-soft); font-size: 11.5px; line-height: 1.6; text-align: center; margin: 6px 0 0; }
+
+  /* 問題 */
+  #screen-quiz { justify-content: flex-end; }
+  .hud {
+    position: fixed; top: max(12px, env(safe-area-inset-top)); left: 0; right: 0;
+    max-width: 560px; margin: 0 auto; padding: 0 16px;
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 14px; color: var(--ink-soft); pointer-events: none;
+  }
+  .hud .score { color: var(--gold); font-weight: 800; }
+  .bar { position: fixed; top: max(40px, calc(env(safe-area-inset-top) + 28px)); left: 16px; right: 16px; max-width: 528px; margin: 0 auto; height: 4px; border-radius: 4px; background: rgba(255,255,255,0.1); overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--out), var(--gold), var(--safe)); transition: width 0.4s ease; }
+
+  .card {
+    background: var(--card); border: 1px solid var(--card-line); border-radius: var(--radius);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    padding: 20px 18px;
+  }
+  .question { text-align: center; transition: opacity 0.25s ease, transform 0.25s ease; }
+  .question.gone { opacity: 0; transform: translateY(20px); pointer-events: none; }
+  .question .emoji { font-size: 44px; line-height: 1; }
+  .question .text { font-size: clamp(18px, 5vw, 22px); font-weight: 800; line-height: 1.55; margin: 12px 0 4px; }
+  .question .ask { color: var(--ink-soft); font-size: 14px; margin: 10px 0 16px; }
+  .answers { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .answer {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    padding: 14px 8px 12px; border-radius: 18px; font-weight: 800;
+    transition: transform 0.12s ease, filter 0.12s ease;
+  }
+  .answer:active { transform: scale(0.95); }
+  .answer .word { font-size: clamp(30px, 9vw, 40px); line-height: 1.2; letter-spacing: 0.06em; padding: 6px 0; }
+  .answer.out { background: linear-gradient(160deg, #ff4d6a, #c8102e); box-shadow: 0 8px 28px rgba(255, 51, 85, 0.35); }
+  .answer.safe { background: linear-gradient(160deg, #4aa0ff, #1356c9); box-shadow: 0 8px 28px rgba(47, 139, 255, 0.35); }
+
+  .explain {
+    position: fixed; left: 0; right: 0; bottom: 0; max-width: 560px; margin: 0 auto;
+    padding: 0 16px max(16px, env(safe-area-inset-bottom));
+    transform: translateY(110%); transition: transform 0.45s cubic-bezier(.2, .9, .25, 1.1);
+  }
+  .explain.show { transform: translateY(0); }
+  .explain .card { max-height: 58vh; overflow-y: auto; }
+  .verdict { font-size: 30px; font-weight: 800; margin: 0; }
+  .verdict.ok { color: var(--gold); }
+  .verdict.ng { color: #ff6b81; }
+  .compare { display: flex; gap: 10px; margin: 10px 0 12px; font-size: 14px; flex-wrap: wrap; }
+  .compare span { padding: 4px 10px; border-radius: 999px; background: rgba(255, 255, 255, 0.08); }
+  .compare b.out { color: var(--out); }
+  .compare b.safe { color: var(--safe); }
+  .law { display: inline-block; font-size: 13px; font-weight: 800; color: var(--gold); margin-bottom: 6px; }
+  .explain p.body { margin: 0; line-height: 1.75; font-size: 15px; }
+  .primary {
+    width: 100%; margin-top: 16px; padding: 15px; border-radius: 16px;
+    background: var(--ink); color: var(--bg); font-weight: 800; font-size: 17px;
+  }
+  .secondary {
+    width: 100%; padding: 14px; border-radius: 16px;
+    background: rgba(255, 255, 255, 0.08); border: 1px solid var(--card-line); font-weight: 800; font-size: 16px;
+  }
+
+  /* 結果 */
+  #screen-result { gap: 12px; padding-top: max(24px, env(safe-area-inset-top)); }
+  .final { text-align: center; }
+  .final .points { font-size: 64px; font-weight: 800; line-height: 1.1; margin: 4px 0; }
+  .final .points small { font-size: 24px; color: var(--ink-soft); }
+  .final .rank { font-size: 22px; font-weight: 800; color: var(--gold); }
+  .final .comment { color: var(--ink-soft); font-size: 14px; margin-top: 6px; line-height: 1.6; }
+  .recap { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .recap li { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; line-height: 1.5; }
+  .recap .res { font-weight: 800; width: 22px; flex: none; }
+  .recap .res.ok { color: var(--gold); }
+  .recap .res.ng { color: #ff6b81; }
+  .recap .ans { margin-left: auto; flex: none; font-weight: 800; }
+  .recap .ans.out { color: var(--out); }
+  .recap .ans.safe { color: var(--safe); }
+  .notice { font-size: 12.5px; line-height: 1.7; color: var(--ink-soft); }
+  .notice strong { color: var(--ink); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .explain, .question, .bar i { transition: none; }
+    #flash.on { animation: none; }
+  }
+</style>
+</head>
+<body>
+<canvas id="fx" aria-hidden="true"></canvas>
+<div id="flash"></div>
+
+<section id="screen-title" class="screen active" aria-label="タイトル">
+  <div class="logo">
+    <h1>これアウト？</h1>
+    <p>やったら犯罪？ 常識ジャッジ</p>
+  </div>
+  <div id="levels" style="display:flex;flex-direction:column;gap:10px"></div>
+  <p class="fine">一般的な法律知識を楽しむクイズです。実際にどうなるかは個別の事情で変わります。</p>
+</section>
+
+<section id="screen-quiz" class="screen" aria-label="問題">
+  <div class="hud"><span id="hud-level"></span><span><span id="hud-count"></span>　<span class="score" id="hud-score"></span></span></div>
+  <div class="bar"><i id="bar"></i></div>
+
+  <div class="card question" id="question">
+    <div class="emoji" id="q-emoji"></div>
+    <div class="text" id="q-text"></div>
+    <div class="ask">これ、アウト？</div>
+    <div class="answers">
+      <button class="answer out" data-answer="out" aria-label="アウト"><span class="word">OUT</span></button>
+      <button class="answer safe" data-answer="safe" aria-label="セーフ"><span class="word">SAFE</span></button>
+    </div>
+  </div>
+
+  <div class="explain" id="explain" aria-live="polite">
+    <div class="card">
+      <p class="verdict" id="verdict"></p>
+      <div class="compare" id="compare"></div>
+      <span class="law" id="law"></span>
+      <p class="body" id="body"></p>
+      <button class="primary" id="next">次へ</button>
+    </div>
+  </div>
+</section>
+
+<section id="screen-result" class="screen" aria-label="結果">
+  <div class="card final">
+    <div id="r-level" style="color:var(--ink-soft);font-size:14px"></div>
+    <div class="points" id="r-points"></div>
+    <div class="rank" id="r-rank"></div>
+    <div class="comment" id="r-comment"></div>
+  </div>
+  <div class="card"><ul class="recap" id="recap"></ul></div>
+  <div class="card notice">
+    <strong>犯罪になることと、逮捕されることは別です。</strong>
+    逮捕は、罪を犯したと疑う十分な理由があり、逃げたり証拠を隠したりするおそれがあるときなどに行われます。
+    逮捕せずに捜査が進む「在宅事件」も多くあります。このクイズの答えは一般論で、実際には個別の事情で変わります。
+    困ったときは弁護士などの専門家に相談してください。
+  </div>
+  <button class="primary" id="retry">もう一度</button>
+  <button class="secondary" id="back">難易度を選ぶ</button>
+</section>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+// ─────────────────────────────────────────────
+// 問題データ
+// answer: "out" = アウト（犯罪になりうる） / "safe" = セーフ（ふつうは犯罪にならない）
+// ─────────────────────────────────────────────
+const QUESTIONS = [
+  // 常識レベル
+  { level: "easy", emoji: "☂️", text: "他人の傘を自分のものと間違えて持って帰った。気づいて翌日すぐ返した。",
+    answer: "safe", law: "窃盗罪（刑法235条）は成立しにくい",
+    body: "窃盗罪は「わざと」他人の物を自分の物にすることが必要です。本当に間違えたのなら、ふつうは犯罪になりません。ただし、気づいたのに返さず使い続けると、遺失物等横領罪などが問題になることがあります。" },
+  { level: "easy", emoji: "✉️", text: "同居している家族あての封筒が気になって、勝手に開けて中の手紙を読んだ。",
+    answer: "out", law: "信書開封罪（刑法133条）",
+    body: "正当な理由なく、封をしてある他人あての手紙を開けると犯罪です（1年以下の拘禁刑または20万円以下の罰金）。家族あてでも成立しえます。被害を受けた人が告訴しないと起訴できない「親告罪」です。" },
+  { level: "easy", emoji: "🚃", text: "電車で寝過ごして終点まで行ってしまった。降りた駅で乗り越し精算をした。",
+    answer: "safe", law: "精算すれば問題なし",
+    body: "寝過ごして乗り越しても、差額をきちんと払えば問題ありません。ただし、精算せずに改札をすり抜けるなど、わざと運賃を払わない行為は詐欺罪や鉄道営業法違反に問われることがあります。" },
+  { level: "easy", emoji: "🍙", text: "コンビニでお腹が空きすぎて、レジに行く前におにぎりを食べ始めた。そのあとレジでちゃんと払った。",
+    answer: "safe", law: "払うつもりで、実際に払えば犯罪になりにくい",
+    body: "払うつもりがあり、実際に払ったなら、ふつうは犯罪になりません。ただしマナー違反ですし、店の人に疑われても仕方がない行動です。払わずに店を出れば窃盗罪になります。会計は先に。" },
+  { level: "easy", emoji: "🚲", text: "駅前に鍵のかかっていない自転車があったので、無断で乗って帰り、家の近くに乗り捨てた。",
+    answer: "out", law: "窃盗罪（刑法235条）",
+    body: "鍵がかかっていなくても、他人の自転車を無断で乗って行き乗り捨てると、返すつもりがないと見られて窃盗罪になりえます（10年以下の拘禁刑または50万円以下の罰金）。" },
+
+  { level: "easy", emoji: "🍢", text: "スーパーの試食コーナーでウインナーを1つ食べ、何も買わずに帰った。",
+    answer: "safe", law: "問題なし",
+    body: "試食は、お店が無料で食べてもらうために出しているものです。買わなくても犯罪にはなりません。ただし、何個も食べたり持ち帰ったりするのはお店の想定をこえていて、トラブルのもとです。" },
+  { level: "easy", emoji: "🧴", text: "ホテルに泊まったとき、部屋の使い捨て歯ブラシと小分けのシャンプーを持ち帰った。",
+    answer: "safe", law: "ふつうは問題なし",
+    body: "使い捨てのアメニティは、泊まった人が使うため（持ち帰ってもよいもの）として置かれているのが一般的です。一方、バスタオルやバスローブ、ドライヤーなど備品を持ち帰ると窃盗罪（刑法235条）になりえます。" },
+  { level: "easy", emoji: "🌸", text: "公園の桜がきれいだったので、枝を1本折って家に持ち帰った。",
+    answer: "out", law: "器物損壊罪（刑法261条）・窃盗罪など",
+    body: "公園の木は管理している自治体などの物です。枝を折れば器物損壊罪（3年以下の拘禁刑または30万円以下の罰金もしくは科料）、持ち帰れば窃盗罪が問題になりえます。軽犯罪法や条例にも、公園の草木を傷つけることを禁じるものがあります。" },
+  { level: "easy", emoji: "☎️", text: "いたずらで110番に電話し、「駅に爆弾を仕掛けた」とうそを言った。",
+    answer: "out", law: "偽計業務妨害罪など（刑法233条）",
+    body: "うその通報で警察や駅の仕事を妨害すると、偽計業務妨害罪などになりえます（3年以下の拘禁刑または50万円以下の罰金）。実際に逮捕される例がとても多い行為です。捜索にかかった費用の賠償を求められることもあります。" },
+  { level: "easy", emoji: "📱", text: "自転車に乗りながら、スマホを手に持って地図アプリの画面を見続けた。",
+    answer: "out", law: "道路交通法71条5号の5",
+    body: "自転車の「ながらスマホ」は、2024年11月から罰則が強化されました（6か月以下の拘禁刑または10万円以下の罰金）。2026年4月からは16歳以上の自転車の違反に反則金（青切符）の制度が始まり、ながらスマホは反則金の対象です。止まって見ましょう。" },
+  { level: "easy", emoji: "🍻", text: "飲み会でビールを飲んだあと、自転車に乗って家に帰った。",
+    answer: "out", law: "道路交通法65条（酒気帯び運転）",
+    body: "自転車は「軽車両」で、飲酒運転は禁止です。2024年11月からは、酒に酔っていなくても基準をこえるアルコールが体に残っている「酒気帯び運転」にも罰則ができました（3年以下の拘禁刑または50万円以下の罰金）。お酒を出した人や自転車を貸した人も罰せられることがあります。" },
+  { level: "easy", emoji: "🐚", text: "海水浴に行ったとき、砂浜で拾ったきれいな貝殻を持ち帰った。",
+    answer: "safe", law: "ふつうは問題なし",
+    body: "砂浜に落ちている貝殻を少し拾って帰るのは、ふつうは問題ありません。ただし、生きている貝やサザエ・アワビなどをとると、漁業権の侵害（密漁）になることがあります。国立公園などでは持ち出しが制限されている場所もあります。" },
+  { level: "easy", emoji: "🎁", text: "友達から誕生日にもらったプレゼントを、使わないのでフリマアプリで売った。",
+    answer: "safe", law: "犯罪にはならない",
+    body: "もらった時点でプレゼントはあなたの物なので、売っても犯罪にはなりません。友達との関係がどうなるかは別の問題です。" },
+  { level: "easy", emoji: "🤒", text: "本当は元気なのに「熱が出た」とうそをついて学校（会社）を休み、遊びに行った。",
+    answer: "safe", law: "刑事上は犯罪にならない",
+    body: "ずる休みそのものは犯罪ではありません。ただし会社なら、就業規則による処分の対象になることがあります。病気を理由にお金（給付金など）を受け取れば、詐欺罪が問題になりえます。" },
+  { level: "easy", emoji: "💬", text: "SNSで、芸能人の投稿に「死ね」「消えろ」と何度もコメントした。",
+    answer: "out", law: "侮辱罪（刑法231条）など",
+    body: "人前で（SNSも含む）人をばかにしたりけなしたりすると侮辱罪になりえます。2022年7月から厳しくなり、1年以下の拘禁刑もしくは30万円以下の罰金または拘留もしくは科料です。内容しだいで脅迫罪や名誉毀損罪にもなりえます。" },
+  { level: "easy", emoji: "🐈", text: "飼っていた猫を飼えなくなったので、遠くの公園に置いてきた。",
+    answer: "out", law: "動物愛護管理法44条3項",
+    body: "愛護動物を捨てると、1年以下の拘禁刑または100万円以下の罰金です。飼えなくなったときは、新しい飼い主を探す、動物保護団体に相談するなど、捨てずに済む方法をとりましょう。" },
+  { level: "easy", emoji: "🐾", text: "公園にいる野良猫がかわいそうだったので、キャットフードをあげた。",
+    answer: "safe", law: "法律上は犯罪にならない",
+    body: "エサをあげること自体は犯罪ではありません。ただし、ふんや鳴き声などで近所とトラブルになりやすく、自治体によっては条例でルール（片付けなど）を決めているところもあります。" },
+  { level: "easy", emoji: "🪟", text: "夜道を歩いていて、カーテンのすき間から他人の家の中をじっとのぞいた。",
+    answer: "out", law: "軽犯罪法1条23号",
+    body: "正当な理由なく、人の住居や浴場、更衣室、トイレなどをこっそりのぞくと軽犯罪法違反です（拘留または科料）。撮影までしてしまうと、性的姿態撮影等処罰法などさらに重い罪が問題になります。" },
+  { level: "easy", emoji: "🔐", text: "友達のSNSのパスワードをたまたま知っていたので、勝手にログインしてDMを読んだ。",
+    answer: "out", law: "不正アクセス禁止法",
+    body: "他人のID・パスワードを使って勝手にログインすると、不正アクセス禁止法違反です（3年以下の拘禁刑または100万円以下の罰金）。仲の良い友達でも、恋人でも同じです。" },
+  { level: "easy", emoji: "🚦", text: "車が1台も来ていなかったので、歩行者用の信号が赤なのに横断歩道を渡った。",
+    answer: "out", law: "道路交通法7条",
+    body: "歩行者も信号に従う義務があり、違反すると2万円以下の罰金または科料と定められています。実際に処罰されることは少ないものの、法律上はアウトです。" },
+  { level: "easy", emoji: "📚", text: "図書館で借りた本を、返却期限を1週間すぎてから返した。",
+    answer: "safe", law: "犯罪にはならない",
+    body: "返すつもりで借りていて、遅れて返しただけなら犯罪にはなりません。ただ、しばらく借りられなくなるなど、図書館のルールで制限がかかることがあります。ずっと返さずに自分の物にすると、横領罪などが問題になりえます。" },
+  { level: "easy", emoji: "🎬", text: "友達の学生証を借りて学生のふりをし、映画館に学生料金で入った。",
+    answer: "out", law: "詐欺罪（刑法246条）",
+    body: "学生だとうそをついて、本来より安い料金でサービスを受けると、詐欺罪になりえます（10年以下の拘禁刑）。金額が小さくても成立しうる罪です。学生証を貸した友達も問題になることがあります。" },
+  { level: "easy", emoji: "🍜", text: "ラーメンを食べたあと財布を忘れたことに気づき、店に正直に言って、翌日払いに行った。",
+    answer: "safe", law: "犯罪にはならない",
+    body: "注文した時点で払うつもりがあったなら、犯罪にはなりません。逆に、最初から払うつもりがないのに注文すると、無銭飲食として詐欺罪（刑法246条）になります。" },
+  { level: "easy", emoji: "👊", text: "口論になってカッとなり、相手の顔を平手でたたいた。ケガはさせなかった。",
+    answer: "out", law: "暴行罪（刑法208条）",
+    body: "ケガをさせなくても、人に暴力をふるえば暴行罪です（2年以下の拘禁刑もしくは30万円以下の罰金または拘留もしくは科料）。ケガをさせれば、より重い傷害罪（刑法204条）になります。" },
+
+  // グレーゾーン
+  { level: "gray", emoji: "🚗", text: "友人の車のキーが置いてあったので、無断で乗って10分だけドライブし、元の場所に戻した。",
+    answer: "out", law: "窃盗罪（刑法235条）になりうる",
+    body: "「ちょっと借りただけ」でも、持ち主に無断で車を乗り回すと窃盗罪になりえます。最高裁は、あとで戻すつもりだった数時間の無断使用について窃盗罪を認めています（最決昭和55年10月30日）。短時間でも状況しだいでアウトです。" },
+  { level: "gray", emoji: "👜", text: "両手がふさがっていたので、買うつもりの商品をいったん自分のバッグに入れて店内を歩いた。",
+    answer: "out", law: "窃盗罪（刑法235条）を疑われうる",
+    body: "本当に払うつもりなら本来は犯罪になりません。ただ、会計前の商品を自分のバッグに入れるのは万引きの典型的な手口と同じ。通報されても仕方がなく、払うつもりだったかどうかは状況から判断されます。かごを使いましょう。" },
+  { level: "gray", emoji: "📱", text: "テーブルに置きっぱなしの恋人のスマホ（ロックなし）を、こっそり開いてLINEを読んだ。",
+    answer: "safe", law: "刑法上は、ふつう犯罪にならない",
+    body: "ロックのかかっていないスマホの中身を見るだけなら、一般に犯罪にはなりません（プライバシーの侵害として民事で問題になることはあります）。ただし、他人のID・パスワードでSNSなどにログインすると、不正アクセス禁止法違反になりえます。" },
+  { level: "gray", emoji: "📸", text: "友達が変顔で写った写真を、本人に聞かずにSNSに投稿した。",
+    answer: "safe", law: "刑事ではなく、民事の問題になりやすい",
+    body: "それだけで犯罪になることはふつうありません。ただし肖像権やプライバシーの侵害として、損害賠償を求められることがあります。内容が本人の社会的な評価を下げるものなら、名誉毀損罪（刑法230条）になりえます。" },
+  { level: "gray", emoji: "📣", text: "夜中の公園で友達と大声で騒ぎ、警察官に注意されたのに、そのまま騒ぎ続けた。",
+    answer: "out", law: "軽犯罪法1条14号",
+    body: "公務員の制止をきかずに、異常に大きな声や音を出して近所に迷惑をかけると、軽犯罪法違反です（拘留または科料）。ポイントは「注意されたのに続けた」こと。" },
+  { level: "gray", emoji: "🏡", text: "近道のために、門の開いていた他人の家の庭を通り抜けた。",
+    answer: "out", law: "住居侵入罪（刑法130条）",
+    body: "建物だけでなく、塀や門で囲まれた庭などの敷地も守られる場所に含まれるとされています。近道のつもりでも、正当な理由なく入ると住居侵入罪になりえます（3年以下の拘禁刑または10万円以下の罰金）。" },
+
+  { level: "gray", emoji: "🪙", text: "レジでお釣りが多すぎるのにその場で気づいたが、黙って受け取った。",
+    answer: "out", law: "詐欺罪（刑法246条）",
+    body: "お釣りが多いと気づいたなら、それを伝える義務があるとされます。黙って受け取ると、「伝えないこと」でだましたとして詐欺罪になりえます。家に帰ってから気づいて返さなかった場合は、遺失物等横領罪（刑法254条）が問題になります。" },
+  { level: "gray", emoji: "🎧", text: "違法にアップロードされていると知りながら、有料で売られている曲をダウンロードした。",
+    answer: "out", law: "著作権法119条3項",
+    body: "有料で売られている音楽や映像を、違法アップロードだと知りながらダウンロードすると、2年以下の拘禁刑または200万円以下の罰金です（著作権者の告訴が必要）。2021年からは漫画や本など、ほかの著作物にも範囲が広がりました。" },
+  { level: "gray", emoji: "📺", text: "違法にアップロードされた映画を、ダウンロードはせずにストリーミングで見た。",
+    answer: "safe", law: "見るだけなら、処罰する規定はない",
+    body: "今の法律では、ダウンロードせずに見るだけの行為を罰する規定はありません。ただし、違法サイトはウイルスや詐欺の入り口になりやすく、作品をつくった人にもお金が入りません。アップロードした側や、違法サイトへ誘導するリーチサイトの運営は処罰の対象です。" },
+  { level: "gray", emoji: "☔", text: "雨の日、片手で傘を差しながら自転車に乗った。",
+    answer: "out", law: "道路交通法（各都道府県の規則）",
+    body: "傘差し運転は、多くの都道府県の規則で禁止されていて、道路交通法の罰則（5万円以下の罰金）の対象です。2026年4月からは、16歳以上なら反則金（青切符、5,000円）の対象にもなりました。カッパを着ましょう。" },
+  { level: "gray", emoji: "👮", text: "街で警察官に職務質問をされたが、急いでいたので断って立ち去った。",
+    answer: "safe", law: "職務質問は任意（警察官職務執行法2条）",
+    body: "職務質問は任意なので、答えるかどうかは自由で、断っても犯罪にはなりません。ただし、状況によっては警察官が呼び止めるために腕に手をかけるなど、ある程度の行為が許されるとした裁判例もあります。警察官を突き飛ばすと公務執行妨害罪になりえます。" },
+  { level: "gray", emoji: "🀄", text: "友達と麻雀をして、点数に応じてお金をやりとりした（1回数千円程度）。",
+    answer: "out", law: "賭博罪（刑法185条）",
+    body: "お金を賭けると、少額でも賭博罪になりえます（50万円以下の罰金または科料）。「一時の娯楽に供する物」を賭けた場合は罰せられませんが、お金はふつうこれに当たらないとされています。" },
+  { level: "gray", emoji: "🧃", text: "友達とゲームで勝負して、負けた人がその場で缶ジュースをおごった。",
+    answer: "safe", law: "刑法185条ただし書（一時の娯楽）",
+    body: "その場で飲み食いするようなジュースやお菓子は「一時の娯楽に供する物」にあたり、賭けても賭博罪にはならないとされています。ただし、お金や、お金に換えやすい物を賭けると話は別です。" },
+  { level: "gray", emoji: "🍊", text: "他人の家の庭から道路にはみ出ている柿の木の実を、1つもいで食べた。",
+    answer: "out", law: "窃盗罪（刑法235条）",
+    body: "道路にはみ出していても、木の実は木の持ち主の物です。勝手にとると窃盗罪になりえます。2023年4月の民法改正で、はみ出した枝は条件つきで自分で切れるようになりましたが、実をとってよいという意味ではありません。" },
+  { level: "gray", emoji: "📖", text: "本屋で雑誌を立ち読みし、気になるレシピのページをスマホで撮影した。",
+    answer: "safe", law: "刑事上はふつう犯罪にならない",
+    body: "自分で使うためのコピーは著作権法30条で認められていて、撮影するだけで犯罪になることはふつうありません。ただし、お店は「撮影禁止」のルールを決められるので、注意されたり、出ていくよう言われたりしても仕方がありません。" },
+  { level: "gray", emoji: "🎰", text: "日本の自宅から、海外で運営されているオンラインカジノに登録して遊んだ。",
+    answer: "out", law: "賭博罪（刑法185条）",
+    body: "運営が海外でも、日本国内から賭けると賭博罪になりえます。実際に多くの利用者が摘発されています。2025年の法改正で、オンラインカジノのサイトを開いたり、紹介・宣伝したりすることも禁止されました。" },
+  { level: "gray", emoji: "🧍", text: "道で知らない人が倒れていたが、急いでいたので声もかけずに通り過ぎた。",
+    answer: "safe", law: "ふつうは犯罪にならない",
+    body: "たまたま通りかかっただけの人には、助ける法律上の義務はふつうありません。保護責任者遺棄罪（刑法218条）は、親や介護者など保護する責任がある人が対象です。ただし、自分が事故を起こした場合は救護する義務があります。できれば119番を。" },
+  { level: "gray", emoji: "🔌", text: "スマホの電池が切れそうだったので、他人の家の外にあるコンセントを勝手に使って充電した。",
+    answer: "out", law: "窃盗罪（刑法235条・245条）",
+    body: "刑法では電気も「財物」とみなされるので、他人の電気を勝手に使うと窃盗罪になりえます。金額が数円でも成立しうるのがポイントです。お店や駅の充電スポットなど、使ってよいと示されている場所を使いましょう。" },
+  { level: "gray", emoji: "🗑️", text: "家のごみを、コンビニの店先のごみ箱にこっそりまとめて捨てた。",
+    answer: "out", law: "廃棄物処理法16条（不法投棄）など",
+    body: "家庭ごみを決められた場所以外に捨てると、廃棄物処理法の不法投棄として罰せられることがあります（5年以下の拘禁刑もしくは1000万円以下の罰金、またはその両方）。実際に摘発された例もあります。" },
+  { level: "gray", emoji: "🍽️", text: "SNSに「あの店、食中毒を出して隠してるらしい」と、根拠のないうわさを書いた。",
+    answer: "out", law: "信用毀損罪・業務妨害罪（刑法233条）",
+    body: "うその情報を広めてお店の信用を傷つけたり、営業を妨害したりすると、信用毀損罪や偽計業務妨害罪になりえます（3年以下の拘禁刑または50万円以下の罰金）。「らしい」と書いても責任はなくなりません。拡散した人も問題になりえます。" },
+  { level: "gray", emoji: "🍶", text: "19歳の大学生が、自分で飲むためにお酒を買ってこっそり飲んだ。",
+    answer: "safe", law: "飲んだ本人への罰則はない",
+    body: "20歳未満の飲酒は法律で禁止されていますが、飲んだ本人を罰する規定はありません（補導の対象にはなります）。罰せられるのは、止めなかった親などの保護者（科料）や、20歳未満と知りながら売ったお店（50万円以下の罰金）の側です。18歳で成人になっても、お酒は20歳からです。" },
+  { level: "gray", emoji: "🖍️", text: "公園の公衆トイレの外壁に、スプレーで大きく落書きをした。",
+    answer: "out", law: "建造物損壊罪（刑法260条）など",
+    body: "消すのが難しい落書きで見た目を大きく損なうと、建物を「壊した」ことになりえます。最高裁は、公衆トイレの外壁にスプレーで落書きした行為を建造物損壊罪としました（最決平成18年1月17日、5年以下の拘禁刑）。" },
+  { level: "gray", emoji: "🍷", text: "お店で商品のワイングラスを手に取ったら、うっかり落として割ってしまった。",
+    answer: "safe", law: "わざとでなければ犯罪にならない",
+    body: "器物損壊罪は「わざと」壊した場合だけが対象で、うっかり壊しても犯罪にはなりません。ただし、お店から弁償を求められることはあります（民事の問題）。" },
+
+  // 法律マニア
+  { level: "mania", emoji: "🪴", text: "家の前の道路（公道）に、植木鉢をずらっと並べて置いた。",
+    answer: "out", law: "道路交通法76条3項",
+    body: "交通の妨害になるような方法で、道路にみだりに物を置くことは禁止されていて、罰則もあります。家や店の前でも、道路の上なら同じです。" },
+  { level: "mania", emoji: "🍺", text: "酔ってコンビニの店員にしつこく話しかけ、「お帰りください」と言われても居座った。",
+    answer: "out", law: "不退去罪（刑法130条後段）",
+    body: "入るときは普通の客でも、帰るよう求められたのに居座ると不退去罪になりえます（3年以下の拘禁刑または10万円以下の罰金）。" },
+  { level: "mania", emoji: "💴", text: "道に落ちていた1万円札を拾って、そのまま自分の財布に入れた。",
+    answer: "out", law: "遺失物等横領罪（刑法254条）",
+    body: "落とし物を自分の物にすると犯罪です（1年以下の拘禁刑または10万円以下の罰金もしくは科料）。交番に届ければ、持ち主が見つからないときは自分の物にでき、見つかったときも5〜20%のお礼（報労金）を求められます。" },
+  { level: "mania", emoji: "🏦", text: "口座に身に覚えのない入金があった。間違いだと気づいたが、銀行の窓口で黙って払い戻しを受けた。",
+    answer: "out", law: "詐欺罪（刑法246条）",
+    body: "誤って振り込まれたと知りながら、窓口で黙って払い戻しを受けると詐欺罪になるとした最高裁の判断があります（最決平成15年3月12日）。ATMで引き出した場合も、窃盗罪などで処罰された例があります。" },
+  { level: "mania", emoji: "📶", text: "カフェの近くで、パスワードのかかっていないWi-Fiを見つけ、勝手につないでネットを使った。",
+    answer: "safe", law: "一般には犯罪にならないとされる",
+    body: "パスワードの無い無線LANにつなぐこと自体は、一般に犯罪にはならないとされています。ただし、パスワードを勝手に解読したり盗み見たりして使うのは別の話で、問題になりえます。持ち主の許可を取るのが確実です。" },
+  { level: "mania", emoji: "🔪", text: "物騒なニュースを見て、護身用に刃渡り15cmの包丁をタオルに包んでカバンに入れ、持ち歩いた。",
+    answer: "out", law: "銃刀法22条",
+    body: "刃の長さが6cmをこえる刃物は、仕事などの正当な理由なく持ち歩くと銃刀法違反です（2年以下の拘禁刑または30万円以下の罰金）。「護身用」は正当な理由にならないとされています。買って家に持ち帰る途中などは正当な理由にあたります。" },
+  { level: "mania", emoji: "🔧", text: "刃渡り5cmの十徳ナイフ（アウトドア用）を、特に使う予定もなくポケットに入れて毎日持ち歩いた。",
+    answer: "out", law: "軽犯罪法1条2号",
+    body: "刃が6cm以下でも、正当な理由なく隠して持ち歩くと軽犯罪法違反になりえます（拘留または科料）。キャンプに行く途中など、使う目的がはっきりしていれば別です。" },
+  { level: "mania", emoji: "🎫", text: "「転売禁止」「購入者の名前入り」の人気ライブのチケットを、最初から売るつもりで何枚も買い、定価より高くネットで売った。",
+    answer: "out", law: "チケット不正転売禁止法",
+    body: "転売禁止が明示され、購入者の確認がされているなどの条件を満たすチケットを、くり返し売るつもりで定価より高く転売すると処罰されます（1年以下の拘禁刑もしくは100万円以下の罰金、またはその両方）。転売目的で買うことも禁止です。" },
+  { level: "mania", emoji: "🎟️", text: "急な仕事で行けなくなったライブのチケットを、定価で友達に譲った。",
+    answer: "safe", law: "チケット不正転売禁止法の対象外",
+    body: "この法律が処罰するのは、くり返し売るつもりで定価をこえる値段で転売することです。行けなくなって定価で譲るのは対象外です。ただし、主催者の規約で入場できなくなることはあるので、公式のリセールがあればそちらが安心です。" },
+  { level: "mania", emoji: "🍄", text: "他人が持っている山に入り、生えていたマツタケを採って持ち帰った。",
+    answer: "out", law: "森林窃盗罪（森林法197条）",
+    body: "山で育ったキノコや山菜、木なども山の持ち主の物です。森林から勝手に持ち出すと、刑法の窃盗罪とは別の「森林窃盗罪」になります（3年以下の拘禁刑または30万円以下の罰金）。マツタケ山は特に厳しく管理されています。" },
+  { level: "mania", emoji: "👛", text: "一緒に住んでいる父親の財布から、こっそり1万円を抜き取った。",
+    answer: "out", law: "窃盗罪（刑は免除：刑法244条）",
+    body: "家族の物を盗んでも窃盗罪は成立します。ただし、配偶者・直系の親族（親や子など）・同居の親族の間の窃盗は「刑が免除」されます（親族相盗例）。罪にならないのではなく、罰せられないだけ、というのがマニア向けのポイントです。" },
+  { level: "mania", emoji: "📦", text: "注文していない健康食品が、代金請求書と一緒に家に届いた。すぐに開けて使ってしまった。",
+    answer: "safe", law: "特定商取引法59条",
+    body: "注文していない商品を勝手に送りつける「送りつけ商法」では、2021年7月から、受け取った人はすぐにその商品を処分・使用でき、代金を払う必要もありません。請求されても払わず、困ったら消費生活センター（188番）へ。" },
+  { level: "mania", emoji: "🎮", text: "SNSで頼まれて、相手のゲームのセーブデータを改造し（アイテムを増やすなど）、お金を受け取った。",
+    answer: "out", law: "不正競争防止法",
+    body: "ゲームのプロテクトを回避してセーブデータを改造するサービスを提供すると、不正競争防止法違反になりえます。法改正で「改造代行」も規制の対象になり、実際に逮捕された例もあります。" },
+  { level: "mania", emoji: "📮", text: "「チラシお断り」の貼り紙がある分譲マンションに入り、共用廊下を回って各戸のドアポストにチラシを配った。",
+    answer: "out", law: "住居侵入罪（刑法130条）",
+    body: "管理組合が立ち入りを認めていないマンションの共用部分に入ってチラシを配った行為について、最高裁は住居侵入罪を認めています（最判平成21年11月30日）。集合ポストへの投函だけなら問題になりにくいなど、状況で判断が分かれます。" },
+  { level: "mania", emoji: "🧂", text: "けんか相手に向かって、「帰れ！」と塩をつかんで何度もふりかけた。",
+    answer: "out", law: "暴行罪（刑法208条）",
+    body: "暴行罪の「暴行」は、殴る・蹴るだけでなく、人の体に向けた有形力の行使を広く含みます。相手に塩をふりかけた行為を暴行とした裁判例もあります（福岡高判昭和46年10月11日）。水をかける、物を投げつけるなども同様に問題になりえます。" },
+  { level: "mania", emoji: "🛸", text: "住宅街（人口集中地区）にある自宅の庭で、許可を取らずに重さ200gのドローンを屋外で飛ばした。",
+    answer: "out", law: "航空法132条の85",
+    body: "100g以上のドローンを人口集中地区の上空で飛ばすには、国の許可が必要です。自分の家の庭でも、屋外ならルールの対象です（違反すると50万円以下の罰金）。屋内や、四方と上をネットで囲った場所なら対象外です。" },
+  { level: "mania", emoji: "🎸", text: "駅前の歩道で、警察の許可を取らずに路上ライブをして人を集めた。",
+    answer: "out", law: "道路交通法77条（道路使用許可）",
+    body: "道路で人が集まるような演奏などをするには、警察署長の道路使用許可が必要とされることがあります。無許可だと3か月以下の拘禁刑または5万円以下の罰金です。まず注意されることが多いですが、法律上はアウトになりえます。" },
+  { level: "mania", emoji: "🛤️", text: "電車に乗り遅れそうだったので、駅のホームから線路に降りて向かいのホームへ渡った。",
+    answer: "out", law: "鉄道営業法37条",
+    body: "駅や線路など鉄道の敷地にみだりに立ち入ると、鉄道営業法違反（科料）です。電車を止めてしまえば業務妨害罪（刑法234条など）も問題になり、鉄道会社から多額の損害賠償を求められることもあります。" },
+  { level: "mania", emoji: "🐣", text: "道ばたで野鳥のヒナを見つけ、かわいそうなので家に連れて帰って飼うことにした。",
+    answer: "out", law: "鳥獣保護管理法8条",
+    body: "野鳥は、許可なくつかまえたり飼ったりすることが禁止されています（1年以下の拘禁刑または100万円以下の罰金）。地面にいるヒナの多くは巣立ちの練習中で、近くで親鳥が見守っています。そっとしておくのが基本です。" },
+  { level: "mania", emoji: "🌳", text: "隣の家の木の枝がうちの敷地に伸びてきた。切ってほしいと頼んだのに1か月以上放っておかれたので、自分で切った。",
+    answer: "safe", law: "民法233条3項（2023年4月から）",
+    body: "以前は、はみ出した枝は木の持ち主に切ってもらうしかありませんでした。2023年4月の民法改正で、切るよう頼んだのに相当の期間内に切ってもらえないときなどは、自分で切れるようになりました。はみ出した部分だけを切るのがポイントです。" },
+  { level: "mania", emoji: "🏃", text: "目の前でひったくりを見たので、犯人を追いかけて取り押さえた。",
+    answer: "safe", law: "現行犯逮捕（刑事訴訟法213条）",
+    body: "現行犯人は、警察官でなくても誰でも逮捕できます。ただし、すぐに警察官に引き渡す必要があります（同法214条）。やりすぎてケガをさせると別の問題になりうるので、何より自分の安全を優先しましょう。" },
+  { level: "mania", emoji: "🎮", text: "友達に貸したゲーム機を何度言っても返してくれないので、友達の家に遊びに行ったとき、こっそり持って帰った。",
+    answer: "out", law: "窃盗罪（刑法235条・242条）になりうる",
+    body: "自分の物でも、他人が持っている（占有している）物は、刑法では他人の物とみなされることがあります（刑法242条）。法律の手続きによらずに自分で取り返す「自力救済」は原則として禁止で、窃盗罪になりえます。話し合いや法的な手続きで返してもらうのが筋です。" },
+  { level: "mania", emoji: "🕯️", text: "亡くなった有名人について、事実（本当のこと）だが評判が下がる話をブログに書いた。",
+    answer: "safe", law: "刑法230条2項",
+    body: "死者の名誉毀損は、うその事実を書いた場合でなければ罰せられません。生きている人なら、本当のことでも評判を下げる事実を広めれば名誉毀損罪になりうるので、そこが大きな違いです。ただし、遺族のプライバシーなどを傷つけると民事で問題になりえます。" },
+  { level: "mania", emoji: "🏚️", text: "警察に追われている友達に頼まれ、しばらく自分の家に泊めてかくまった。",
+    answer: "out", law: "犯人蔵匿罪（刑法103条）",
+    body: "罪を犯して逃げている人をかくまうと、犯人蔵匿罪です（3年以下の拘禁刑または30万円以下の罰金）。かくまったのが犯人の親族なら、刑を免除できるという特例があります（刑法105条）。" },
+];
+
+const QUIZ_LENGTH = 10;   // 1 回に出す問題数（問題の中からランダム）
+
+const LEVELS = [
+  { id: "easy",  badge: "🔰", name: "常識レベル",   sub: "まずはここから" },
+  { id: "gray",  badge: "🌫️", name: "グレーゾーン", sub: "常識と法律がズレるかも" },
+  { id: "mania", badge: "⚖️", name: "法律マニア",   sub: "判例まで知ってる？" },
+  { id: "all",   badge: "🎲", name: "ぜんぶ",       sub: "全問からランダムに10問" },
+];
+
+const RANKS = [
+  { min: 1.0, name: "法の番人",       comment: "全問正解。常識と法律のズレまで見抜いています。" },
+  { min: 0.8, name: "敏腕刑事",       comment: "かなりの目利き。グレーゾーンにも強いタイプ。" },
+  { min: 0.6, name: "町のおまわりさん", comment: "だいたい分かっています。あと一歩。" },
+  { min: 0.4, name: "見習い巡査",     comment: "意外な答えが多かったかも。解説を読み返してみて。" },
+  { min: 0,   name: "要注意人物",     comment: "知らずにアウトになる前に、もう一度どうぞ。" },
+];
+
+// ─────────────────────────────────────────────
+// 自己ベスト（保存できない環境でも動くように）
+// ─────────────────────────────────────────────
+const store = {
+  get(key) { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } },
+  set(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} },
+};
+const bestKey = (level) => `koreout.best.${level}`;
+
+// ─────────────────────────────────────────────
+// three.js の演出（読み込めなければ演出なしで続ける）
+// ─────────────────────────────────────────────
+const noFx = { title() {}, play() {}, lift() {}, clear() {}, finale() {} };
+let fx = noFx;
+try {
+  fx = await createFx(document.getElementById("fx"));
+} catch (error) {
+  console.warn("three.js を読み込めなかったので演出なしで動かします", error);
+}
+
+async function createFx(canvas) {
+  const THREE = await import("three");
+  const { EffectComposer } = await import("three/addons/postprocessing/EffectComposer.js");
+  const { RenderPass } = await import("three/addons/postprocessing/RenderPass.js");
+  const { UnrealBloomPass } = await import("three/addons/postprocessing/UnrealBloomPass.js");
+  const { OutputPass } = await import("three/addons/postprocessing/OutputPass.js");
+  const { RoundedBoxGeometry } = await import("three/addons/geometries/RoundedBoxGeometry.js");
+  const { FontLoader } = await import("three/addons/loaders/FontLoader.js");
+  const { TextGeometry } = await import("three/addons/geometries/TextGeometry.js");
+
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const OUT = new THREE.Color("#ff3355");
+  const SAFE = new THREE.Color("#2f8bff");
+  const GOLD = new THREE.Color("#ffcc33");
+
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color("#0b0d17");
+  scene.fog = new THREE.Fog("#0b0d17", 14, 34);
+  const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+  camera.position.set(0, 0, 12);
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+  const key = new THREE.DirectionalLight(0xffffff, 2.2);
+  key.position.set(4, 6, 8);
+  scene.add(key);
+  const rim = new THREE.PointLight(0x88aaff, 40, 30);
+  rim.position.set(-6, -3, 4);
+  scene.add(rim);
+
+  const composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
+  const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 1.0, 0.55, 0.2);
+  composer.addPass(bloom);
+  composer.addPass(new OutputPass());
+
+  // ○ と × の形
+  const circleGeo = new THREE.TorusGeometry(2.1, 0.5, 40, 140);
+  const barGeo = new RoundedBoxGeometry(5.6, 1.0, 1.0, 5, 0.42);
+  const material = (color, glow = 0.8) => new THREE.MeshStandardMaterial({
+    color, emissive: color, emissiveIntensity: glow, metalness: 0.25, roughness: 0.3, transparent: true,
+  });
+  function makeSymbol(kind, glow) {
+    if (kind === "out") return new THREE.Mesh(circleGeo, material(OUT, glow));
+    const group = new THREE.Group();
+    const mat = material(SAFE, glow);
+    for (const angle of [Math.PI / 4, -Math.PI / 4]) {
+      const bar = new THREE.Mesh(barGeo, mat);
+      bar.rotation.z = angle;
+      group.add(bar);
+    }
+    return group;
+  }
+  // 正解の発表に使う「OUT」「SAFE」の立体文字（フォントが読めなければ ○ × で代用）
+  const wordGeo = {};
+  try {
+    const font = await new FontLoader().loadAsync("https://cdn.jsdelivr.net/npm/three@0.160.0/examples/fonts/helvetiker_bold.typeface.json");
+    for (const [kind, word] of [["out", "OUT"], ["safe", "SAFE"]]) {
+      const geo = new TextGeometry(word, {
+        font, size: 1.5, height: 0.55, curveSegments: 6,
+        bevelEnabled: true, bevelThickness: 0.12, bevelSize: 0.06, bevelSegments: 3,
+      });
+      geo.center();
+      wordGeo[kind] = geo;
+    }
+  } catch (error) {
+    console.warn("フォントを読み込めなかったので ○ × で代用します", error);
+  }
+  function makeWord(kind, glow) {
+    if (!wordGeo[kind]) return makeSymbol(kind, glow);
+    return new THREE.Mesh(wordGeo[kind], material(kind === "out" ? OUT : SAFE, glow));
+  }
+  const setOpacity = (object, value) => object.traverse((o) => { if (o.material) o.material.opacity = value; });
+
+  // 背景に漂う小さな ○ と ×
+  const drifters = [];
+  for (let i = 0; i < (reduced ? 14 : 34); i++) {
+    const kind = i % 2 ? "out" : "safe";
+    const mesh = makeSymbol(kind, 0.35);
+    const s = 0.12 + Math.random() * 0.22;
+    mesh.scale.setScalar(s);
+    mesh.position.set((Math.random() - 0.5) * 30, (Math.random() - 0.5) * 20, -4 - Math.random() * 18);
+    mesh.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
+    setOpacity(mesh, 0.55);
+    mesh.userData = { spin: new THREE.Vector3((Math.random() - 0.5) * 0.6, (Math.random() - 0.5) * 0.6, (Math.random() - 0.5) * 0.3), rise: 0.15 + Math.random() * 0.35 };
+    scene.add(mesh);
+    drifters.push(mesh);
+  }
+
+  // 大きな記号（正解の発表）とタイトルの 2 つ
+  let hero = null;           // { object, born, baseY, targetY, leaving, leftAt, wobble }
+  let titlePair = [];
+
+  // 光の粒
+  const MAX_SPARKS = reduced ? 300 : 1400;
+  const sparkPos = new Float32Array(MAX_SPARKS * 3);
+  const sparkCol = new Float32Array(MAX_SPARKS * 3);
+  const sparkVel = new Float32Array(MAX_SPARKS * 3);
+  const sparkLife = new Float32Array(MAX_SPARKS);
+  const sparkGeo = new THREE.BufferGeometry();
+  sparkGeo.setAttribute("position", new THREE.BufferAttribute(sparkPos, 3));
+  sparkGeo.setAttribute("color", new THREE.BufferAttribute(sparkCol, 3));
+  const sparks = new THREE.Points(sparkGeo, new THREE.PointsMaterial({
+    size: 0.16, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  }));
+  scene.add(sparks);
+  let sparkCursor = 0;
+  function burst(center, colors, count, speed) {
+    for (let n = 0; n < count; n++) {
+      const i = sparkCursor;
+      sparkCursor = (sparkCursor + 1) % MAX_SPARKS;
+      const dir = new THREE.Vector3().randomDirection().multiplyScalar(speed * (0.35 + Math.random()));
+      sparkPos.set([center.x, center.y, center.z], i * 3);
+      sparkVel.set([dir.x, dir.y, dir.z * 0.6], i * 3);
+      const c = colors[n % colors.length];
+      const boost = 0.7 + Math.random() * 0.8;
+      sparkCol.set([c.r * boost, c.g * boost, c.b * boost], i * 3);
+      sparkLife[i] = 1;
+    }
+  }
+
+  // 紙吹雪
+  const CONFETTI = reduced ? 0 : 220;
+  const confetti = new THREE.InstancedMesh(
+    new THREE.PlaneGeometry(0.16, 0.28),
+    new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }),
+    Math.max(CONFETTI, 1));
+  confetti.count = 0;
+  const confettiState = [];
+  const palette = ["#ff3355", "#2f8bff", "#ffcc33", "#39e6a0", "#ffffff", "#b06bff"].map((c) => new THREE.Color(c));
+  for (let i = 0; i < CONFETTI; i++) confetti.setColorAt(i, palette[i % palette.length]);
+  scene.add(confetti);
+  const dummy = new THREE.Object3D();
+  function launchConfetti() {
+    confettiState.length = 0;
+    for (let i = 0; i < CONFETTI; i++) {
+      confettiState.push({
+        p: new THREE.Vector3((Math.random() - 0.5) * 4, -1 + Math.random() * 2, 1 + Math.random() * 2),
+        v: new THREE.Vector3((Math.random() - 0.5) * 12, 6 + Math.random() * 9, (Math.random() - 0.5) * 4),
+        r: new THREE.Euler(Math.random() * 6, Math.random() * 6, Math.random() * 6),
+        s: new THREE.Vector3((Math.random() - 0.5) * 14, (Math.random() - 0.5) * 14, (Math.random() - 0.5) * 14),
+      });
+    }
+    confetti.count = CONFETTI;
+    confetti.instanceColor && (confetti.instanceColor.needsUpdate = true);
+  }
+
+  // 衝撃波のリング
+  const rings = [];
+  function shockwave(color, delay = 0) {
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.92, 1, 96), new THREE.MeshBasicMaterial({
+      color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+    }));
+    ring.visible = false;
+    ring.userData.start = clock.elapsedTime + delay;
+    scene.add(ring);
+    rings.push(ring);
+  }
+
+  // 画面の揺れ
+  let shakeUntil = 0;
+  let shakePower = 0;
+
+  const clock = new THREE.Clock();
+  const easeOutBack = (t) => { const c = 2.2; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); };
+  const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+
+  function removeHero(immediate = false) {
+    if (!hero) return;
+    if (immediate) { scene.remove(hero.object); hero = null; return; }
+    hero.leaving = true;
+    hero.leftAt = clock.elapsedTime;
+  }
+
+  function resize() {
+    const w = innerWidth, h = innerHeight;
+    renderer.setSize(w, h, false);
+    composer.setSize(w, h);
+    bloom.setSize(w, h);
+    camera.aspect = w / h;
+    // 縦長の画面では記号がはみ出さないよう少し引く
+    camera.position.z = w / h < 0.7 ? 15 : 12;
+    camera.updateProjectionMatrix();
+  }
+  addEventListener("resize", resize);
+  resize();
+
+  function tick() {
+    const dt = Math.min(clock.getDelta(), 0.05);
+    const t = clock.elapsedTime;
+
+    for (const d of drifters) {
+      d.rotation.x += d.userData.spin.x * dt;
+      d.rotation.y += d.userData.spin.y * dt;
+      d.rotation.z += d.userData.spin.z * dt;
+      d.position.y += d.userData.rise * dt;
+      if (d.position.y > 11) d.position.y = -11;
+    }
+
+    for (const [i, m] of titlePair.entries()) {
+      m.rotation.y = Math.sin(t * 0.8 + i * 1.6) * 0.6;
+      m.rotation.x = Math.sin(t * 0.6 + i) * 0.2;
+      m.position.y = 3.3 + Math.sin(t * 1.2 + i * 2) * 0.15;
+    }
+
+    if (hero) {
+      const age = t - hero.born;
+      const o = hero.object;
+      if (hero.leaving) {
+        const k = Math.min((t - hero.leftAt) / 0.3, 1);
+        o.scale.setScalar(Math.max(1 - easeOutCubic(k), 0.001));
+        o.rotation.z += dt * 8;
+        if (k >= 1) { scene.remove(o); hero = null; }
+      } else {
+        const k = Math.min(age / 0.7, 1);
+        const s = easeOutBack(k);
+        o.scale.setScalar(Math.max(s, 0.001));
+        o.position.z = -8 * (1 - easeOutCubic(k)) + 1;
+        const spin = (1 - easeOutCubic(k)) * Math.PI * 4;
+        o.rotation.y = spin + (k >= 1 ? Math.sin(age * 1.5) * 0.35 : 0);
+        o.rotation.x = k >= 1 ? Math.sin(age * 1.1) * 0.12 : 0;
+        hero.baseY += (hero.targetY - hero.baseY) * Math.min(dt * 5, 1);
+        o.position.y = hero.baseY + (k >= 1 ? Math.sin(age * 2) * 0.12 : 0);
+        if (hero.wobble && age < 0.9) o.position.x = Math.sin(age * 60) * 0.25 * (1 - age / 0.9);
+        const glow = 0.8 + Math.max(0, 1.6 - age * 2.5);
+        o.traverse((m) => { if (m.material) m.material.emissiveIntensity = glow; });
+      }
+    }
+
+    // 光の粒
+    for (let i = 0; i < MAX_SPARKS; i++) {
+      if (sparkLife[i] <= 0) continue;
+      sparkLife[i] -= dt * 0.9;
+      const j = i * 3;
+      sparkVel[j + 1] -= 4.5 * dt;
+      sparkVel[j] *= 0.985; sparkVel[j + 1] *= 0.985; sparkVel[j + 2] *= 0.985;
+      sparkPos[j] += sparkVel[j] * dt;
+      sparkPos[j + 1] += sparkVel[j + 1] * dt;
+      sparkPos[j + 2] += sparkVel[j + 2] * dt;
+      if (sparkLife[i] <= 0) { sparkPos[j + 1] = -999; }
+      else { const f = 0.96; sparkCol[j] *= f; sparkCol[j + 1] *= f; sparkCol[j + 2] *= f; }
+    }
+    sparkGeo.attributes.position.needsUpdate = true;
+    sparkGeo.attributes.color.needsUpdate = true;
+
+    // 紙吹雪
+    if (confetti.count > 0) {
+      let alive = 0;
+      confettiState.forEach((c, i) => {
+        c.v.y -= 9 * dt;
+        c.v.multiplyScalar(0.985);
+        if (c.v.y < -2.2) c.v.y = -2.2;      // ひらひら落ちる
+        c.p.addScaledVector(c.v, dt);
+        c.r.x += c.s.x * dt; c.r.y += c.s.y * dt; c.r.z += c.s.z * dt;
+        dummy.position.copy(c.p);
+        dummy.rotation.copy(c.r);
+        dummy.updateMatrix();
+        confetti.setMatrixAt(i, dummy.matrix);
+        if (c.p.y > -12) alive++;
+      });
+      confetti.instanceMatrix.needsUpdate = true;
+      if (!alive) confetti.count = 0;
+    }
+
+    // 衝撃波
+    for (let i = rings.length - 1; i >= 0; i--) {
+      const ring = rings[i];
+      const age = t - ring.userData.start;
+      if (age < 0) continue;
+      ring.visible = true;
+      const k = age / 0.9;
+      ring.scale.setScalar(1 + easeOutCubic(Math.min(k, 1)) * 9);
+      ring.position.y = hero ? hero.object.position.y : 0;
+      ring.material.opacity = Math.max(1 - k, 0);
+      if (k >= 1) { scene.remove(ring); ring.geometry.dispose(); ring.material.dispose(); rings.splice(i, 1); }
+    }
+
+    // 揺れ
+    if (t < shakeUntil) {
+      const p = shakePower * ((shakeUntil - t) / 0.55);
+      camera.position.x = (Math.random() - 0.5) * p;
+      camera.position.y = (Math.random() - 0.5) * p;
+    } else {
+      camera.position.x *= 0.8;
+      camera.position.y *= 0.8;
+    }
+
+    composer.render();
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+
+  return {
+    /** タイトル画面の ○ と × */
+    title(show) {
+      titlePair.forEach((m) => scene.remove(m));
+      titlePair = [];
+      if (!show) return;
+      removeHero(true);
+      titlePair = ["out", "safe"].map((kind, i) => {
+        const m = makeSymbol(kind, 0.9);
+        m.scale.setScalar(0.55);
+        m.position.set(i ? 2.1 : -2.1, 3.3, 0);
+        scene.add(m);
+        return m;
+      });
+    },
+    /** 正解を「OUT」「SAFE」の立体文字で出す。correct = プレイヤーが当てたか */
+    play(answer, correct) {
+      removeHero(true);
+      const object = makeWord(answer, 1.6);
+      object.scale.setScalar(0.001);
+      scene.add(object);
+      hero = { object, born: clock.elapsedTime, baseY: 0.6, targetY: 0.6, leaving: false, wobble: !correct };
+      const color = answer === "out" ? OUT : SAFE;
+      const center = new THREE.Vector3(0, 0.6, 1);
+      if (correct) {
+        setTimeout(() => {
+          burst(center, [GOLD, color, new THREE.Color("#ffffff")], reduced ? 120 : 700, 11);
+          shockwave(GOLD);
+          shockwave(color, 0.12);
+          launchConfetti();
+        }, 380);
+      } else {
+        setTimeout(() => {
+          burst(center, [new THREE.Color("#ff2244"), new THREE.Color("#661122")], reduced ? 60 : 260, 6);
+          shockwave(new THREE.Color("#ff2244"));
+          if (!reduced) { shakeUntil = clock.elapsedTime + 0.55; shakePower = 0.9; }
+        }, 380);
+      }
+    },
+    /** 解説が出たら、記号を上に寄せる */
+    lift() { if (hero) hero.targetY = innerHeight / innerWidth > 1.3 ? 3.6 : 2.6; },
+    clear() { removeHero(); },
+    /** 結果画面: 点数に応じてお祝い */
+    finale(ratio) {
+      removeHero(true);
+      if (ratio < 0.6) return;
+      const c = new THREE.Vector3(0, 2, 0);
+      burst(c, [GOLD, OUT, SAFE, new THREE.Color("#ffffff")], reduced ? 150 : 1000, 13);
+      shockwave(GOLD);
+      launchConfetti();
+    },
+  };
+}
+
+// ─────────────────────────────────────────────
+// 画面とゲームの進行
+// ─────────────────────────────────────────────
+const $ = (id) => document.getElementById(id);
+const screens = { title: $("screen-title"), quiz: $("screen-quiz"), result: $("screen-result") };
+const LABEL = { out: "OUT", safe: "SAFE" };
+
+let game = null;   // { level, questions, index, score, history, answered }
+
+function show(name) {
+  for (const [key, el] of Object.entries(screens)) el.classList.toggle("active", key === name);
+}
+
+function shuffle(list) {
+  const a = list.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function renderLevels() {
+  const box = $("levels");
+  box.innerHTML = "";
+  for (const level of LEVELS) {
+    const best = store.get(bestKey(level.id));
+    const button = document.createElement("button");
+    button.className = "level";
+    button.innerHTML = `<span class="badge">${level.badge}</span>
+      <span><div class="name">${level.name}</div><div class="sub">${level.sub}</div></span>
+      <span class="best">${best ? `ベスト ${best.score}/${best.total}` : ""}</span>`;
+    button.addEventListener("click", () => start(level.id));
+    box.appendChild(button);
+  }
+}
+
+function goTitle() {
+  game = null;
+  renderLevels();
+  show("title");
+  fx.title(true);
+}
+
+function start(levelId) {
+  const pool = levelId === "all" ? QUESTIONS : QUESTIONS.filter((q) => q.level === levelId);
+  const questions = shuffle(pool).slice(0, QUIZ_LENGTH);
+  game = { level: levelId, questions, index: 0, score: 0, history: [], answered: false };
+  fx.title(false);
+  $("hud-level").textContent = LEVELS.find((l) => l.id === levelId).name;
+  show("quiz");
+  renderQuestion();
+}
+
+function renderQuestion() {
+  const q = game.questions[game.index];
+  game.answered = false;
+  $("q-emoji").textContent = q.emoji;
+  $("q-text").textContent = q.text;
+  $("hud-count").textContent = `${game.index + 1} / ${game.questions.length}`;
+  $("hud-score").textContent = `${game.score} 点`;
+  $("bar").style.width = `${(game.index / game.questions.length) * 100}%`;
+  $("question").classList.remove("gone");
+  $("explain").classList.remove("show");
+  fx.clear();
+}
+
+function answer(choice) {
+  if (!game || game.answered) return;
+  game.answered = true;
+  const q = game.questions[game.index];
+  const correct = choice === q.answer;
+  if (correct) game.score++;
+  game.history.push({ q, choice, correct });
+
+  $("question").classList.add("gone");
+  $("hud-score").textContent = `${game.score} 点`;
+  $("bar").style.width = `${((game.index + 1) / game.questions.length) * 100}%`;
+  fx.play(q.answer, correct);
+  if (!correct && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    const flash = $("flash");
+    flash.classList.remove("on");
+    void flash.offsetWidth;
+    setTimeout(() => flash.classList.add("on"), 380);
+  }
+  if (navigator.vibrate) navigator.vibrate(correct ? 30 : [60, 40, 60]);
+
+  $("verdict").textContent = correct ? "正解！" : "ざんねん…";
+  $("verdict").className = `verdict ${correct ? "ok" : "ng"}`;
+  $("compare").innerHTML =
+    `<span>あなた <b class="${choice}">${LABEL[choice]}</b></span>` +
+    `<span>法律では <b class="${q.answer}">${LABEL[q.answer]}</b></span>`;
+  $("law").textContent = q.law;
+  $("body").textContent = q.body;
+  $("next").textContent = game.index + 1 < game.questions.length ? "次へ" : "結果を見る";
+
+  setTimeout(() => {
+    if (!game || !game.answered) return;
+    $("explain").classList.add("show");
+    fx.lift();
+    $("next").focus({ preventScroll: true });
+  }, 1100);
+}
+
+function next() {
+  if (!game || !game.answered) return;
+  game.index++;
+  if (game.index < game.questions.length) renderQuestion();
+  else finish();
+}
+
+function finish() {
+  const total = game.questions.length;
+  const ratio = game.score / total;
+  const rank = RANKS.find((r) => ratio >= r.min);
+  const best = store.get(bestKey(game.level));
+  if (!best || game.score / best.total < ratio) store.set(bestKey(game.level), { score: game.score, total });
+
+  $("r-level").textContent = LEVELS.find((l) => l.id === game.level).name;
+  $("r-points").innerHTML = `${game.score}<small> / ${total}</small>`;
+  $("r-rank").textContent = rank.name;
+  $("r-comment").textContent = rank.comment;
+  const list = $("recap");
+  list.innerHTML = "";
+  for (const h of game.history) {
+    const li = document.createElement("li");
+    li.innerHTML = `<span class="res ${h.correct ? "ok" : "ng"}">${h.correct ? "◎" : "✕"}</span>
+      <span class="q"></span><span class="ans ${h.q.answer}">${LABEL[h.q.answer]}</span>`;
+    li.querySelector(".q").textContent = `${h.q.emoji} ${h.q.text}`;
+    list.appendChild(li);
+  }
+  show("result");
+  screens.result.scrollTop = 0;
+  fx.finale(ratio);
+}
+
+document.querySelectorAll(".answer").forEach((b) => b.addEventListener("click", () => answer(b.dataset.answer)));
+$("next").addEventListener("click", next);
+$("retry").addEventListener("click", () => start(game.level));
+$("back").addEventListener("click", goTitle);
+addEventListener("keydown", (e) => {
+  if (!screens.quiz.classList.contains("active")) return;
+  const k = e.key.toLowerCase();
+  if (k === "o" || k === "1") answer("out");
+  else if (k === "s" || k === "x" || k === "2") answer("safe");
+  else if (k === "enter" && game?.answered && $("explain").classList.contains("show")) { e.preventDefault(); next(); }
+});
+
+goTitle();
+</script>
+</body>
+</html>
