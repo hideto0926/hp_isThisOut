@@ -149,6 +149,18 @@
   .recap .ans.out { color: var(--out); }
   .recap .ans.safe { color: var(--safe); }
   .notice { font-size: 12.5px; line-height: 1.7; color: var(--ink-soft); }
+  .promo .label { font-size: 12px; color: var(--ink-soft); margin: 0 0 8px; }
+  .promo a.app {
+    display: flex; align-items: center; gap: 12px; color: inherit; text-decoration: none;
+    padding: 12px; border-radius: 14px; background: rgba(255, 255, 255, 0.06); border: 1px solid var(--card-line);
+  }
+  .promo a.app:active { transform: scale(0.98); }
+  .promo .app-emoji { font-size: 30px; width: 40px; text-align: center; flex: none; }
+  .promo .app-name { font-weight: 800; font-size: 16px; }
+  .promo .app-desc { color: var(--ink-soft); font-size: 13px; line-height: 1.5; margin-top: 2px; }
+  .promo .app-go { margin-left: auto; color: var(--gold); font-weight: 800; flex: none; }
+  .promo .more { display: flex; justify-content: space-between; margin-top: 10px; font-size: 13px; }
+  .promo .more a, .promo .more button { color: var(--ink-soft); background: none; padding: 0; text-decoration: underline; }
   .notice strong { color: var(--ink); }
 
   @media (prefers-reduced-motion: reduce) {
@@ -203,6 +215,18 @@
     <div class="comment" id="r-comment"></div>
   </div>
   <div class="card"><ul class="recap" id="recap"></ul></div>
+  <div class="card promo" id="promo">
+    <p class="label">ひと休みに、こんなアプリもどうぞ</p>
+    <a class="app" id="promo-app" target="_blank" rel="noopener">
+      <span class="app-emoji" id="promo-emoji"></span>
+      <span><div class="app-name" id="promo-name"></div><div class="app-desc" id="promo-desc"></div></span>
+      <span class="app-go">›</span>
+    </a>
+    <div class="more">
+      <button id="promo-shuffle">べつのアプリ</button>
+      <a href="https://hideto0926.github.io/" target="_blank" rel="noopener">アプリ一覧を見る</a>
+    </div>
+  </div>
   <div class="card notice">
     <strong>犯罪になることと、逮捕されることは別です。</strong>
     逮捕は、罪を犯したと疑う十分な理由があり、逃げたり証拠を隠したりするおそれがあるときなどに行われます。
@@ -463,6 +487,47 @@ const RANKS = [
   { min: 0.4, name: "見習い巡査",     comment: "意外な答えが多かったかも。解説を読み返してみて。" },
   { min: 0,   name: "要注意人物",     comment: "知らずにアウトになる前に、もう一度どうぞ。" },
 ];
+
+// ─────────────────────────────────────────────
+// 結果画面でランダムに紹介するアプリ（https://hideto0926.github.io/ に載っているもの）
+// ─────────────────────────────────────────────
+const SITE = "https://hideto0926.github.io/";
+const APPS = [
+  { emoji: "🌡️", name: "Mercury",          path: "https://apps.apple.com/jp/app/id6800380855", desc: "傾けて水銀をゴールへ運ぶ迷路パズル" },
+  { emoji: "🗺️", name: "GeoInfoView",      path: "GeoInfoView/",   desc: "写真の撮影地・標高・山の名前を地図で見る" },
+  { emoji: "🖼️", name: "pairPics",         path: "parePics/",      desc: "写真をギャラリー風の組写真に仕上げる" },
+  { emoji: "⏯️", name: "リジュームマスター", path: "videoResume/",   desc: "動画の再生位置とお気に入りの場面を記録" },
+  { emoji: "🙈", name: "NullFace",         path: "nullFace/",      desc: "顔が写った写真を自動で隠す閲覧アプリ" },
+  { emoji: "📔", name: "あとから旅日記",    path: "atokaraDiary/",  desc: "写真の情報から旅の日記を自動でつくる" },
+  { emoji: "🎵", name: "音の神経衰弱",      path: "musicGame/",     desc: "曲のイントロでペアを探す神経衰弱" },
+  { emoji: "🎆", name: "ドンピタ",          path: "hanabi/",        desc: "花火動画の音ズレをピタッと補正" },
+  { emoji: "✏️", name: "かみバトル",        path: "kamiBattle/",    desc: "紙に描いたモンスターが3Dで戦う" },
+  { emoji: "🐕", name: "SHIBA TOWER",      path: "shibaTower/",    desc: "写真から切り抜いた人やペットを積み上げる" },
+  { emoji: "🎈", name: "ふぅふぅ",          path: "fufu/",          desc: "息を吹きかけて風船を飛ばすゲーム" },
+  { emoji: "🎞️", name: "ScrollAlbum",      path: "scrollAlbum/",   desc: "旅の写真と動画を横スクロールの年表に" },
+  { emoji: "📣", name: "好きぴエール",      path: "cheerNotice/",   desc: "推しの写真が方言で応援してくれる通知" },
+  { emoji: "📸", name: "POLACAM",          path: "PolaCamera/",    desc: "じわっと浮かび上がるインスタントカメラ" },
+  { emoji: "💘", name: "LoveTypeViewer",   path: "LoveTypeViewer/", desc: "16タイプで相性をまるごと見くらべる" },
+  { emoji: "✨", name: "Magic Album",      path: "MagicAlbum/",    desc: "写真を自動で切り抜いてステッカーに" },
+  { emoji: "🗂️", name: "instaFolder",      path: "instaFolder/",   desc: "写真を分析してフォルダ分けを提案" },
+  { emoji: "🌧️", name: "Rain Cam",         path: "RainDropCam/",   desc: "カメラの映像にリアルな雨を降らせる" },
+  { emoji: "🫥", name: "superMosaic",      path: "superMosaic/",   desc: "写真の見せたくない部分を自動でモザイク" },
+  { emoji: "🔀", name: "BeatShuffle",      path: "BeatShuffle/",   desc: "友だちのプレイリストを混ぜてシャッフル" },
+  { emoji: "🏷️", name: "BarcodeClip",      path: "barcodeClip/",   desc: "ポイントカードのバーコードをまとめて管理" },
+  { emoji: "🀄", name: "麻雀EYE",          path: "MahjongEye/",    desc: "牌を撮るだけで点数を計算" },
+  { emoji: "⏱️", name: "30minTimer",       path: "30minTimer/",    desc: "通知でお知らせするシンプルなタイマー" },
+];
+let lastApp = null;
+
+function renderPromo() {
+  const choices = APPS.filter((a) => a !== lastApp);
+  const app = choices[Math.floor(Math.random() * choices.length)];
+  lastApp = app;
+  $("promo-app").href = new URL(app.path, SITE).href;
+  $("promo-emoji").textContent = app.emoji;
+  $("promo-name").textContent = app.name;
+  $("promo-desc").textContent = app.desc;
+}
 
 // ─────────────────────────────────────────────
 // 自己ベスト（保存できない環境でも動くように）
@@ -962,6 +1027,7 @@ function finish() {
     li.querySelector(".q").textContent = `${h.q.emoji} ${h.q.text}`;
     list.appendChild(li);
   }
+  renderPromo();
   show("result");
   screens.result.scrollTop = 0;
   fx.finale(ratio);
@@ -971,6 +1037,7 @@ document.querySelectorAll(".answer").forEach((b) => b.addEventListener("click", 
 $("next").addEventListener("click", next);
 $("retry").addEventListener("click", () => start(game.level));
 $("back").addEventListener("click", goTitle);
+$("promo-shuffle").addEventListener("click", renderPromo);
 addEventListener("keydown", (e) => {
   if (!screens.quiz.classList.contains("active")) return;
   const k = e.key.toLowerCase();
